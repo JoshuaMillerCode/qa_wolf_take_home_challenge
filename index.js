@@ -1,92 +1,108 @@
-// EDIT THIS FILE TO COMPLETE ASSIGNMENT QUESTION 1
 const { chromium } = require('playwright');
+const logTest = require('./utils/logger.js');
+
+async function saveHackerNewsArticles(page) {
+  // launch browser
+  // if statement to check if there is already a page from being ran inside a test
+  // See tests/articles.spec.js file
+  if (!page) {
+    const browser = await chromium.launch({ headless: false });
+    const context = await browser.newContext();
+    page = await context.newPage();
+  }
+
+  // go to Hacker News
+  await page.goto('https://news.ycombinator.com/newest');
+
+  //Array to collect timestamp strings
+  let times = [];
+
+  // Loop until 100 articles are collected
+  while (times.length < 100) {
+    /* 
+      Following best practices listed here:
+      https://playwright.dev/docs/best-practices
+
+      Only test user-visible data
+
+      This grabs all of the article timestamp string:
+      Ex: '1 minute ago'
+    */
+    const articleTimes = await page.locator('.age').allTextContents();
+
+    // allTextContents return an array so concat them onto the times array
+    times = times.concat(articleTimes);
+
+    // Click to the next page of articles with a second delay, for testing file
+    await page.locator('.morelink').click({
+      delay: 1000,
+    });
+  }
+
+  // Return the first 100 timestamps
+  return times.slice(0, 100);
+}
+
+function isNewestToOldest(timeArr) {
+  // Loop through the array
+  for (let i = 0; i < timeArr.length; i++) {
+    // Only run if the next index exist
+    if (timeArr[i + 1]) {
+      // Extract and store the time from current and next string
+      const [num1, num2] = [
+        parseInt(timeArr[i].slice(0, 2)),
+        parseInt(timeArr[i + 1].slice(0, 2)),
+      ];
+      // Extract and store the time unit from current and next string
+      const [unit1, unit2] = [
+        timeArr[i].slice(2).trim(),
+        timeArr[i + 1].slice(2).trim(),
+      ];
+
+      // If an hour unit come before a minute unit, it is NOT newest to oldest
+      if (unit1[0] === 'h' && unit2[0] === 'm') {
+        return false;
+      } else if (
+        // Check if both current and next index have the same time unit
+        (unit1[0] === 'm' && unit2[0] === 'm') ||
+        (unit1[0] === 'h' && unit2[0] === 'h')
+      ) {
+        // If so, check if first num is larger than the next.
+        // If so, the arr is NOT newest to oldest
+        if (num1 > num2) {
+          return false;
+        }
+      }
+    }
+  }
+
+  // Otherwise, return true
+  return true;
+}
+
+// Set this to true when running test in tests/articles.spec.js file
+let testing = false;
+
+(async () => {
+  if (!testing) {
+    // Store the timestamps returned from the function
+    const articleDates = await saveHackerNewsArticles();
+
+    // Test Failure input. This input shuould fail the test
+    // const oldestToNewestTest = ['1 hour ago', '38 minutes ago'];
+
+    // // Run the validator on the times and store the result
+    const isValidated = isNewestToOldest(articleDates);
+
+    // // Log the result
+    logTest(isValidated);
+
+    // Exit Node process
+    process.exit();
+  }
+})();
 
 module.exports = {
   saveHackerNewsArticles,
   isNewestToOldest,
 };
-
-async function saveHackerNewsArticles() {
-  // launch browser
-  const browser = await chromium.launch({ headless: false });
-  const context = await browser.newContext();
-  page = await context.newPage();
-
-  // go to Hacker News
-  await page.goto('https://news.ycombinator.com/newest');
-  // Array to hold all the UTC dates
-  let articleDates = [];
-
-  pageLoop: while (articleDates.length < 100) {
-    //Collect all of the elements that hold the article's UTC publish date
-    const articleAges = await page.locator('.age').all();
-
-    // Loop over the elements to get their title attribute which holds the UTC date
-    for (let i = 0; i < articleAges.length; i++) {
-      const date = await articleAges[i].getAttribute('title');
-      articleDates.push(date);
-      // Once it collects 100 dates, close the page and stop the loop by continuing the outer loop
-      if (articleDates.length >= 100) {
-        await page.close();
-        continue pageLoop;
-      }
-    }
-
-    // Click to the next page of articles
-    await page.locator('.morelink').click();
-  }
-
-  return articleDates;
-}
-
-// Validator Function
-function isNewestToOldest(arr) {
-  // Loop over array
-  for (let i = 0; i < arr.length; i++) {
-    // Store the next element
-    let nextIdx = arr[i + 1];
-    //Check if next index exist
-    if (nextIdx) {
-      /*
-        Check is current date is older than the next. 
-        If it is, return false
-      */
-      if (arr[i] < nextIdx) {
-        return false;
-      }
-    }
-  }
-
-  // Otherwise return true
-  return true;
-}
-
-// Logger Function. Color based on success or failure.
-function logTest(result) {
-  const print = result
-    ? `\x1b[30m\x1b[42m${result}\x1b[0m`
-    : `\x1b[30m\x1b[41m${result}\x1b[0m`;
-
-  console.log(`
-    
-    \x1b[7mArticles are ordered newest to oldest:\x1b[0m ${print}
-    
-    `);
-}
-
-(async () => {
-  // Store the dates returned from the function
-  const articleDates = await saveHackerNewsArticles();
-
-  // Test Failure input. This input shuould fail the test
-  // const oldestToNewestTest = ['2024-06-28T19:38:53', '2024-06-28T19:39:44'];
-
-  // Run the validator on the dates and store the result
-  const isValidated = isNewestToOldest(articleDates);
-
-  // Log the result
-  logTest(isValidated);
-
-  // Exit Node process
-  process.exit();
-})();
