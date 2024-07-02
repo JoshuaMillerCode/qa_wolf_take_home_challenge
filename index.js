@@ -1,5 +1,7 @@
 const { chromium } = require('playwright');
 const logTest = require('./utils/logger.js');
+// Set this to true when running test in tests/articles.spec.js file
+let testing = false;
 
 async function saveHackerNewsArticles(page) {
   // launch browser
@@ -79,9 +81,6 @@ function isNewestToOldest(timeArr) {
   // Otherwise, return true
   return true;
 }
-
-// Set this to true when running test in tests/articles.spec.js file
-let testing = false;
 
 (async () => {
   if (!testing) {
